@@ -1,0 +1,21 @@
+{
+  "name": "s3-image-optimizer",
+  "description": "Event-driven background image compressor microservice using Bun, RabbitMQ, and MinIO",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "format": "bun x biome format --write ./src",
+    "lint": "bun x biome lint ./src",
+    "check": "bun x biome check --write ./src"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.2",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
