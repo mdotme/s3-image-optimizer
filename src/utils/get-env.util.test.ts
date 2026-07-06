@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getEnv } from "./get-env.util";
+import { getEnv, getRequiredEnv } from "./get-env.util";
 
 const TEST_KEY = "GET_ENV_TEST_KEY";
 
@@ -72,7 +72,31 @@ describe("getEnv", () => {
 		expect(getEnv(TEST_KEY, "fallback")).toBe("fallback");
 	});
 
-  test("falls back to default when env var and secret file are unset", () => {
-    expect(getEnv(TEST_KEY, "9000")).toBe("9000");
-  });
+	test("falls back to default when env var and secret file are unset", () => {
+		expect(getEnv(TEST_KEY, "9000")).toBe("9000");
+	});
+});
+
+describe("getRequiredEnv", () => {
+	beforeEach(() => {
+		delete process.env[TEST_KEY];
+		delete process.env[`${TEST_KEY}_FILE`];
+	});
+
+	afterEach(() => {
+		delete process.env[TEST_KEY];
+		delete process.env[`${TEST_KEY}_FILE`];
+	});
+
+	test("returns the env var when set", () => {
+		process.env[TEST_KEY] = "required-value";
+
+		expect(getRequiredEnv(TEST_KEY)).toBe("required-value");
+	});
+
+	test("throws when unset", () => {
+		expect(() => getRequiredEnv(TEST_KEY)).toThrow(
+			"Missing required config: GET_ENV_TEST_KEY (or GET_ENV_TEST_KEY_FILE)",
+		);
+	});
 });

@@ -1,0 +1,125 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4.3.2-management-alpine
+    restart: unless-stopped
+    ports:
+      - "${RABBITMQ_AMQP_PORT}:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - s3-image-optimizer-net
+
+  rabbitmq-init:
+    image: curlimages/curl:8.12.1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASS: ${RABBITMQ_PASS}
+      MINIO_EVENT_EXCHANGE: ${MINIO_EVENT_EXCHANGE}
+      MINIO_EVENT_QUEUE: ${MINIO_EVENT_QUEUE}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        set -e
+
+        curl -fsS -u "$$RABBITMQ_USER:$$RABBITMQ_PASS" \
+          -H "content-type: application/json" \
+          -X PUT "http://rabbitmq:15672/api/exchanges/%2F/$$MINIO_EVENT_EXCHANGE" \
+          -d '{"type":"topic","durable":true}'
+
+        curl -fsS -u "$$RABBITMQ_USER:$$RABBITMQ_PASS" \
+          -H "content-type: application/json" \
+          -X PUT "http://rabbitmq:15672/api/queues/%2F/$$MINIO_EVENT_QUEUE" \
+          -d '{"durable":true}'
+
+        curl -fsS -u "$$RABBITMQ_USER:$$RABBITMQ_PASS" \
+          -H "content-type: application/json" \
+          -X POST "http://rabbitmq:15672/api/bindings/%2F/e/$$MINIO_EVENT_EXCHANGE/q/$$MINIO_EVENT_QUEUE" \
+          -d '{"routing_key":"s3.#"}'
+        echo "RabbitMQ topic exchange, queue, and wildcard binding ready"
+    restart: "no"
+    networks:
+      - s3-image-optimizer-net
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
+    ports:
+      - "${MINIO_API_PORT}:9000"
+      - "9001:9001"
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - minio:/data
+    networks:
+      - s3-image-optimizer-net
+    secrets:
+      - minio_secret
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_secret
+      MINIO_NOTIFY_AMQP_ENABLE_primary: "on"
+      MINIO_NOTIFY_AMQP_URL_primary: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
+      MINIO_NOTIFY_AMQP_EXCHANGE_primary: ${MINIO_EVENT_EXCHANGE}
+      MINIO_NOTIFY_AMQP_EXCHANGE_TYPE_primary: topic
+      MINIO_NOTIFY_AMQP_ROUTING_KEY_primary: "s3.*"
+      MINIO_NOTIFY_AMQP_DURABLE_primary: "on"
+      MINIO_NOTIFY_AMQP_DELIVERY_MODE_primary: "2"
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_BUCKET: public
+    secrets:
+      - minio_secret
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        set -e
+        MINIO_SECRET_KEY=$$(cat /run/secrets/minio_secret)
+        until mc alias set local http://minio:9000 "$$MINIO_ACCESS_KEY" "$$MINIO_SECRET_KEY"; do
+          echo "Waiting for MinIO..."
+          sleep 2
+        done
+        mc mb --ignore-existing "local/$$MINIO_BUCKET"
+        mc event rm --force "local/$$MINIO_BUCKET" || true
+        mc event add "local/$$MINIO_BUCKET" "arn:minio:sqs::primary:amqp" --event put
+        mc event list "local/$$MINIO_BUCKET"
+    restart: "no"
+    networks:
+      - s3-image-optimizer-net
+
+secrets:
+  minio_secret:
+    file: ./.docker/secrets/storage_secret_key.txt
+
+networks:
+  s3-image-optimizer-net:
+    driver: bridge
+
+volumes:
+  rabbitmq:
+    driver: local
+  minio:
+    driver: local

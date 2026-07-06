@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 
 function readSecretFile(filePath: string): string | undefined {
-	if (!existsSync(filePath)) {
-		return undefined;
-	}
+  if (!existsSync(filePath)) {
+    return undefined;
+  }
 
-	return readFileSync(filePath, "utf8").trim();
+  return readFileSync(filePath, "utf8").trim();
 }
 
 /**
@@ -25,21 +25,30 @@ function readSecretFile(filePath: string): string | undefined {
 export function getEnv(name: string): string | undefined;
 export function getEnv(name: string, defaultValue: string): string;
 export function getEnv(
-	name: string,
-	defaultValue?: string,
+  name: string,
+  defaultValue?: string,
 ): string | undefined {
-	const value = process.env[name];
-	if (value !== undefined && value !== "") {
-		return value;
-	}
+  const value = Bun.env[name];
+  if (value !== undefined && value !== "") {
+    return value;
+  }
 
-	const secretFilePath = process.env[`${name}_FILE`];
-	if (secretFilePath) {
-		const secret = readSecretFile(secretFilePath);
-		if (secret !== undefined) {
-			return secret;
-		}
-	}
+  const secretFilePath = Bun.env[`${name}_FILE`];
+  if (secretFilePath) {
+    const secret = readSecretFile(secretFilePath);
+    if (secret !== undefined) {
+      return secret;
+    }
+  }
 
-	return defaultValue;
+  return defaultValue;
+}
+
+export function getRequiredEnv(name: string): string {
+  const value = getEnv(name);
+  if (value === undefined) {
+    throw new Error(`Missing required config: ${name} (or ${name}_FILE)`);
+  }
+
+  return value;
 }
