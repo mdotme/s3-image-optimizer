@@ -13,9 +13,13 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.2",
+    "@types/amqplib": "^0.10.8",
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "amqplib": "^2.0.1"
   }
 }

@@ -3,7 +3,7 @@ services:
     image: rabbitmq:4.3.2-management-alpine
     restart: unless-stopped
     ports:
-      - "${RABBITMQ_AMQP_PORT}:5672"
+      - "5672:5672"
       - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
@@ -48,7 +48,7 @@ services:
         curl -fsS -u "$$RABBITMQ_USER:$$RABBITMQ_PASS" \
           -H "content-type: application/json" \
           -X POST "http://rabbitmq:15672/api/bindings/%2F/e/$$MINIO_EVENT_EXCHANGE/q/$$MINIO_EVENT_QUEUE" \
-          -d '{"routing_key":"s3.#"}'
+          -d '{"routing_key":"s3.ObjectCreated.#"}'
         echo "RabbitMQ topic exchange, queue, and wildcard binding ready"
     restart: "no"
     networks:
@@ -79,7 +79,7 @@ services:
       MINIO_NOTIFY_AMQP_URL_primary: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
       MINIO_NOTIFY_AMQP_EXCHANGE_primary: ${MINIO_EVENT_EXCHANGE}
       MINIO_NOTIFY_AMQP_EXCHANGE_TYPE_primary: topic
-      MINIO_NOTIFY_AMQP_ROUTING_KEY_primary: "s3.*"
+      MINIO_NOTIFY_AMQP_ROUTING_KEY_primary: "s3.ObjectCreated.*"
       MINIO_NOTIFY_AMQP_DURABLE_primary: "on"
       MINIO_NOTIFY_AMQP_DELIVERY_MODE_primary: "2"
 
