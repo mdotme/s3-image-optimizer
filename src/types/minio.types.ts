@@ -46,10 +46,10 @@ export interface MinioEventRecord {
       sequencer: string;
 
       userMetadata?: {
+        "X-Amz-Meta-Optimize-Image"?: string;
         "X-Amz-Meta-Quality"?: string;
         "X-Amz-Meta-Width"?: string;
         "X-Amz-Meta-Height"?: string;
-        "X-Amz-Meta-Optimized"?: string;
         "X-Amz-Meta-Output-Object-Key"?: string;
         "X-Amz-Meta-Filter"?: Bun.Image.Filter;
         [key: string]: string | undefined;

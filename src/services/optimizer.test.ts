@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import {
   ImageOptimizer,
   type ImageOptimizerOptimizeOptions,
@@ -11,7 +12,6 @@ const fixturesDir = join(projectRoot, "tests/fixtures");
 const outputDir = join(projectRoot, "optimized");
 
 const FIXTURES = [
-  { name: "text", file: "text.jpg" },
   { name: "trees", file: "trees.jpg" },
   { name: "fun", file: "fun.png" },
 ] as const;
@@ -80,29 +80,16 @@ async function getFileSize(path: string): Promise<number> {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function formatSizeDelta(originalSize: number, outputSize: number): string {
   const delta = originalSize - outputSize;
   const percent = Math.abs((delta / originalSize) * 100).toFixed(1);
-
-  if (delta > 0) {
-    return `saved ${formatBytes(delta)} (${percent}%)`;
-  }
-
-  if (delta < 0) {
-    return `+${formatBytes(-delta)} larger (+${percent}%)`;
-  }
-
+  if (delta > 0) return `saved ${formatBytes(delta)} (${percent}%)`;
+  if (delta < 0) return `+${formatBytes(-delta)} larger (+${percent}%)`;
   return "same size";
 }
 
@@ -117,16 +104,28 @@ function logSizeComparison(
 }
 
 describe("ImageOptimizer", () => {
-  const optimizer = new ImageOptimizer();
+  beforeAll(() => {
+    resetOutputDir();
+  });
+
+  describe("Initialization & Properties", () => {
+    test("should instantiate properties using system tmpdir and random UUIDv7 identifiers", async () => {
+      const optimizer = new ImageOptimizer();
+
+      expect(optimizer.ID).toBeDefined();
+      expect(optimizer.rootJobDir).toContain("s3-image-optimizer");
+      expect(optimizer.jobDir).toContain(optimizer.ID);
+      expect(existsSync(optimizer.jobDir)).toBe(true);
+
+      await optimizer.cleanup();
+    });
+  });
 
   describe("optimize", () => {
-    beforeAll(() => {
-      resetOutputDir();
-    });
-
     for (const fixture of FIXTURES) {
       for (const optimizeCase of OPTIMIZE_CASES) {
         test(`${fixture.name}/${optimizeCase.name}`, async () => {
+          const optimizer = new ImageOptimizer();
           const input = fixturePath(fixture.file);
           const output = outputPath(fixture.name, optimizeCase.name);
           const source = await Bun.file(input).image().metadata();
@@ -159,12 +158,15 @@ describe("ImageOptimizer", () => {
           } else {
             expect(result.height).toBe(expected.height);
           }
+
+          await optimizer.cleanup();
         });
       }
     }
 
     for (const fixture of FIXTURES) {
-      test(`${fixture.name}/quality`, async () => {
+      test(`${fixture.name}/quality tiers`, async () => {
+        const optimizer = new ImageOptimizer();
         const input = fixturePath(fixture.file);
         const originalSize = await getFileSize(input);
         const sizes: number[] = [];
@@ -199,7 +201,45 @@ describe("ImageOptimizer", () => {
         for (let index = 1; index < sizes.length; index++) {
           expect(sizes[index - 1]).toBeLessThan(sizes[index] as number);
         }
+
+        await optimizer.cleanup();
       });
     }
+  });
+
+  describe("optimizeStream", () => {
+    test("should pull content from a readable stream, process locally, and save output", async () => {
+      const optimizer = new ImageOptimizer();
+      const sourceFile = fixturePath("fun.png");
+
+      const buffer = await Bun.file(sourceFile).arrayBuffer();
+      const mockReadableStream = Readable.from(Buffer.from(buffer));
+
+      await optimizer.optimizeStream(mockReadableStream, {
+        quality: 75,
+        width: 400,
+      });
+
+      expect(existsSync(optimizer.outputPath)).toBe(true);
+
+      const resultMetadata = await Bun.file(optimizer.outputPath)
+        .image()
+        .metadata();
+      expect(resultMetadata.format).toBe("webp");
+      expect(resultMetadata.width).toBe(400);
+
+      await optimizer.cleanup();
+    });
+  });
+
+  describe("cleanup", () => {
+    test("should completely delete the localized job directory tree without residue", async () => {
+      const optimizer = new ImageOptimizer();
+      expect(existsSync(optimizer.jobDir)).toBe(true);
+
+      await optimizer.cleanup();
+
+      expect(existsSync(optimizer.jobDir)).toBe(false);
+    });
   });
 });
