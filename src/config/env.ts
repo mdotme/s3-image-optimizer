@@ -6,8 +6,10 @@ export const env = {
   MINIO_EVENT_EXCHANGE: getEnv("MINIO_EVENT_EXCHANGE", "minio.events"),
   MINIO_EVENT_QUEUE: getEnv("MINIO_EVENT_QUEUE", "image-uploads"),
 
-  MINIO_API_PORT: +getEnv("MINIO_API_PORT", "9000"),
-  MINIO_HOST: getRequiredEnv("MINIO_HOST"),
+  MINIO_HOST: getEnv("MINIO_HOST", "localhost"),
+  MINIO_PORT: +getEnv("MINIO_PORT", "9000"),
+  // biome-ignore lint/suspicious/noDoubleEquals: 'Expected string bool'
+  MINIO_USE_SSL: getEnv("MINIO_USE_SSL", "false") == "true",
   MINIO_ACCESS_KEY: getRequiredEnv("MINIO_ACCESS_KEY"),
   MINIO_SECRET_KEY: getRequiredEnv("MINIO_SECRET_KEY"),
 } as const;

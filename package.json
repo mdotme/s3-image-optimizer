@@ -20,6 +20,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "amqplib": "^2.0.1"
+    "amqplib": "^2.0.1",
+    "minio": "^8.0.7",
+    "zod": "^4.4.3"
   }
 }

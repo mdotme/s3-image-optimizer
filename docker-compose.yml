@@ -63,7 +63,7 @@ services:
       rabbitmq-init:
         condition: service_completed_successfully
     ports:
-      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_PORT}:9000"
       - "9001:9001"
     command: ["server", "/data", "--console-address", ":9001"]
     volumes:
