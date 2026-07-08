@@ -1,4 +1,30 @@
 services:
+  image-optimizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
+      MINIO_EVENT_EXCHANGE: ${MINIO_EVENT_EXCHANGE}
+      MINIO_EVENT_QUEUE: ${MINIO_EVENT_QUEUE}
+      MINIO_HOST: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: false
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY_FILE: /run/secrets/minio_secret
+    secrets:
+      - minio_secret
+    networks:
+      - s3-image-optimizer-net
+
   rabbitmq:
     image: rabbitmq:4.3.2-management-alpine
     restart: unless-stopped
@@ -66,6 +92,11 @@ services:
       - "${MINIO_PORT}:9000"
       - "9001:9001"
     command: ["server", "/data", "--console-address", ":9001"]
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && exec 3<&-"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
     volumes:
       - minio:/data
     networks:

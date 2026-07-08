@@ -1,0 +1,44 @@
+# Git & Documentation
+.git
+.gitignore
+README.md
+LICENSE
+
+# Local Dev Tooling & IDE Configurations
+.vscode
+.idea
+.zed
+.cursor
+.nvim
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+.local
+
+# Testing Framework Artifacts
+tests/
+**/*.test.ts
+**/*.spec.ts
+fixtures/
+optimized/
+.docker
+
+# Bun & Local System Build Targets
+.bun/
+node_modules/
+bun.lockb
+dist/
+build/
+out/
+
+# Temporary Scratchpads & Dynamic Cache Files
+.tmp/
+tmp/
+
+# Infrastructure & Secrets Configurations
+.env
+.env.*
+docker-compose*.yml
+Dockerfile
