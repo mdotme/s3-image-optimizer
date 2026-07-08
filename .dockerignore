@@ -1,6 +1,7 @@
 # Git & Documentation
 .git
 .gitignore
+.github
 README.md
 LICENSE
 
@@ -24,6 +25,7 @@ tests/
 fixtures/
 optimized/
 .docker
+.releaserc.json
 
 # Bun & Local System Build Targets
 .bun/
