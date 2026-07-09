@@ -5,6 +5,7 @@ export const env = {
 
   MINIO_EVENT_EXCHANGE: getEnv("MINIO_EVENT_EXCHANGE", "minio.events"),
   MINIO_EVENT_QUEUE: getEnv("MINIO_EVENT_QUEUE", "image-uploads"),
+  OPTIMIZED_EVENT_QUEUE: getEnv("OPTIMIZED_EVENT_QUEUE"),
 
   MINIO_HOST: getEnv("MINIO_HOST", "localhost"),
   MINIO_PORT: +getEnv("MINIO_PORT", "9000"),
