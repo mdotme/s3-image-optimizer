@@ -30,7 +30,7 @@ export class ImageOptimizer {
     input: string,
     output: string,
     opts: ImageOptimizerOptimizeOptions,
-  ): Promise<void> {
+  ): Promise<number> {
     const img = Bun.file(input).image({
       autoOrient: true, // EXIF orientation case
     });
@@ -47,12 +47,15 @@ export class ImageOptimizer {
       quality: opts.quality,
     });
 
-    await img.write(output);
+    return await img.write(output);
   }
 
-  async optimizeStream(stream: Readable, opts: ImageOptimizerOptimizeOptions) {
+  async optimizeStream(
+    stream: Readable,
+    opts: ImageOptimizerOptimizeOptions,
+  ): Promise<number> {
     await downloadStream(stream, this.downloadPath);
-    await this.optimize(this.downloadPath, this.outputPath, opts);
+    return await this.optimize(this.downloadPath, this.outputPath, opts);
   }
 
   async cleanup() {

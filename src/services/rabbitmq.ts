@@ -1,5 +1,6 @@
 import amqp from "amqplib";
 import { env } from "@/config/env";
+import type { OptimizedEventPayload } from "@/types/optimized-event.types";
 
 class RabbitMQService {
   private connection: amqp.ChannelModel | null = null;
@@ -22,6 +23,15 @@ class RabbitMQService {
         "s3.ObjectCreated.#",
       );
 
+      if (env.OPTIMIZED_EVENT_QUEUE) {
+        await this.channel.assertQueue(env.OPTIMIZED_EVENT_QUEUE, {
+          durable: true,
+        });
+        console.log(
+          `📡 Outbound queue initialized: ${env.OPTIMIZED_EVENT_QUEUE}`,
+        );
+      }
+
       await this.channel.prefetch(1);
 
       console.log("✅ Connected to RabbitMQ connection pool");
@@ -29,6 +39,28 @@ class RabbitMQService {
     } catch (error) {
       console.error("❌ Failed to establish RabbitMQ connection:", error);
       throw error;
+    }
+  }
+
+  async publishOptimizedEvent(
+    payload: OptimizedEventPayload,
+  ): Promise<boolean> {
+    if (!this.channel) {
+      console.warn("⚠️ RabbitMQ channel is not open. Cannot publish event.");
+      return false;
+    }
+
+    if (!env.OPTIMIZED_EVENT_QUEUE) return false;
+
+    try {
+      const content = Buffer.from(JSON.stringify(payload));
+      this.channel.sendToQueue(env.OPTIMIZED_EVENT_QUEUE, content, {
+        persistent: true,
+      });
+      return true;
+    } catch (error) {
+      console.error(`❌ Failed to publish image optimization event: ${error}`);
+      return false;
     }
   }
 

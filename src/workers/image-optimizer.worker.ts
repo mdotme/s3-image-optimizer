@@ -2,8 +2,13 @@ import type { Channel } from "amqplib";
 import z from "zod";
 import { env } from "@/config/env";
 import { minioClient } from "@/config/minio";
-import { ImageOptimizer } from "@/services/optimizer";
+import {
+  ImageOptimizer,
+  type ImageOptimizerOptimizeOptions,
+} from "@/services/optimizer";
+import { rabbitMQService } from "@/services/rabbitmq";
 import type { MinioEvent } from "@/types/minio.types";
+import type { OptimizedEventPayload } from "@/types/optimized-event.types";
 import { parseMetadata } from "@/utils/parse-metadata.util";
 
 const parseNum = (val: unknown) =>
@@ -42,6 +47,10 @@ export async function startImageOptimizerWorker(channel: Channel) {
         return;
       }
 
+      const eventId = Bun.randomUUIDv7();
+      const eventTime = new Date().toISOString();
+      const startTime = performance.now();
+
       try {
         console.log("\n--- 📥 NEW MINIO EVENT ---");
         const rawStr = msg.content.toString();
@@ -70,25 +79,27 @@ export async function startImageOptimizerWorker(channel: Channel) {
           console.debug(result.data);
           metadata = result.data;
         } catch (err) {
-          console.error("Zod validation error: " + err);
+          console.error(`Zod validation error: ${err}`);
           channel.ack(msg);
           return;
         }
 
         const optimizer = new ImageOptimizer();
+        const optimizeOpts: ImageOptimizerOptimizeOptions = {
+          quality: metadata.quality,
+          width: metadata?.width,
+          height: metadata?.height,
+          filter: metadata?.filter,
+        };
 
+        let outputSize: number;
         try {
           const dataStream = await minioClient.getObject(
             record.s3.bucket.name,
             decodeURIComponent(record.s3.object.key.replace(/\+/g, " ")),
           );
 
-          await optimizer.optimizeStream(dataStream, {
-            quality: metadata.quality,
-            width: metadata?.width,
-            height: metadata?.height,
-            filter: metadata?.filter,
-          });
+          outputSize = await optimizer.optimizeStream(dataStream, optimizeOpts);
         } catch (err) {
           await optimizer.cleanup();
           console.error(`Error downloading file from Minio: ${err}`);
@@ -96,17 +107,48 @@ export async function startImageOptimizerWorker(channel: Channel) {
           return;
         }
 
+        let uploadedObjInfo: Awaited<ReturnType<typeof minioClient.fPutObject>>;
         try {
-          await minioClient.fPutObject(
+          uploadedObjInfo = await minioClient.fPutObject(
             record.s3.bucket.name,
             metadata["output-object-key"],
             optimizer.outputPath,
           );
         } catch (err) {
           console.error(`Unexpected error uploading optimized image: ${err}`);
+          channel.ack(msg);
+          return;
         }
 
         await optimizer.cleanup();
+
+        try {
+          if (env.OPTIMIZED_EVENT_QUEUE) {
+            const durationMs = Math.round(performance.now() - startTime);
+            const outPayload: OptimizedEventPayload = {
+              eventId,
+              eventTime,
+              durationMs,
+              bucket: record.s3.bucket.name,
+              optimizedOptions: optimizeOpts,
+              inputObject: {
+                key: record.s3.object.key,
+                size: record.s3.object.size,
+                etag: record.s3.object.eTag,
+              },
+              outputObject: {
+                key: metadata["output-object-key"],
+                size: outputSize,
+                etag: uploadedObjInfo.etag,
+              },
+            };
+
+            await rabbitMQService.publishOptimizedEvent(outPayload);
+          }
+        } catch (err) {
+          console.warn(`Failed to publish optimized event: ${err}`);
+        }
+
         channel.ack(msg);
       } catch (error) {
         console.error("Failed to proccess event payload: ", error);
