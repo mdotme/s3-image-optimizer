@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/mdotme/s3-image-optimizer/compare/v1.0.0...v1.1.0) (2026-07-09)
+
+
+### Features
+
+* **pipeline:** allow optional outbound rabbitmq event routing ([0a98cbe](https://github.com/mdotme/s3-image-optimizer/commit/0a98cbe8f2edede254927c6ff63a6940b8ec8bac))
+
 # 1.0.0 (2026-07-08)
 
 
