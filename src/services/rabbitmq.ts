@@ -13,25 +13,6 @@ class RabbitMQService {
       this.connection = await amqp.connect(env.RABBITMQ_URL);
       this.channel = await this.connection.createChannel();
 
-      await this.channel.assertExchange(env.MINIO_EVENT_EXCHANGE, "topic", {
-        durable: true,
-      });
-      await this.channel.assertQueue(env.MINIO_EVENT_QUEUE, { durable: true });
-      await this.channel.bindQueue(
-        env.MINIO_EVENT_QUEUE,
-        env.MINIO_EVENT_EXCHANGE,
-        "s3.ObjectCreated.#",
-      );
-
-      if (env.OPTIMIZED_EVENT_QUEUE) {
-        await this.channel.assertQueue(env.OPTIMIZED_EVENT_QUEUE, {
-          durable: true,
-        });
-        console.log(
-          `📡 Outbound queue initialized: ${env.OPTIMIZED_EVENT_QUEUE}`,
-        );
-      }
-
       await this.channel.prefetch(1);
 
       console.log("✅ Connected to RabbitMQ connection pool");
@@ -50,13 +31,28 @@ class RabbitMQService {
       return false;
     }
 
-    if (!env.OPTIMIZED_EVENT_QUEUE) return false;
+    if (!env.OPTIMIZER_EVENT_EXCHANGE || !env.OPTIMIZER_EVENT_ROUTING_KEY) {
+      console.warn(
+        "⚠️ Outbound exchange or routing key is not configured. Skipping event emission.",
+      );
+      return false;
+    }
 
     try {
       const content = Buffer.from(JSON.stringify(payload));
-      this.channel.sendToQueue(env.OPTIMIZED_EVENT_QUEUE, content, {
-        persistent: true,
-      });
+
+      this.channel.publish(
+        env.OPTIMIZER_EVENT_EXCHANGE,
+        env.OPTIMIZER_EVENT_ROUTING_KEY,
+        content,
+        {
+          persistent: true,
+        },
+      );
+
+      console.log(
+        `📡 Dispatched optimization success event to exchange: ${env.OPTIMIZER_EVENT_EXCHANGE}`,
+      );
       return true;
     } catch (error) {
       console.error(`❌ Failed to publish image optimization event: ${error}`);

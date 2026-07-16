@@ -40,7 +40,7 @@ export async function startImageOptimizerWorker(channel: Channel) {
   console.log("🤖 Worker image optimizer is active");
 
   await channel.consume(
-    env.MINIO_EVENT_QUEUE,
+    env.OPTIMIZER_UPLOAD_QUEUE,
     async (msg) => {
       if (!msg) {
         console.warn("⚠️ Consumer cancelled by RabbitMQ broker broker.");
@@ -123,7 +123,7 @@ export async function startImageOptimizerWorker(channel: Channel) {
         await optimizer.cleanup();
 
         try {
-          if (env.OPTIMIZED_EVENT_QUEUE) {
+          if (env.OPTIMIZER_UPLOAD_QUEUE) {
             const durationMs = Math.round(performance.now() - startTime);
             const outPayload: OptimizedEventPayload = {
               eventId,

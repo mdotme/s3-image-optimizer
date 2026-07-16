@@ -12,19 +12,23 @@ All environmental variables ending with
 `_FILE` suffix are treated as secret (files) and supported.
 Keep in mind that if both vars are defined it gets the regular one.
 For example if you define `MINIO_SECRET_KEY` & `MINIO_SECRET_KEY_FILE`
-it gets from `MINIO_SECRET_KEY`
+it gets from `MINIO_SECRET_KEY`.
 
-| Name                    | Required |      Default      | Description                                                                                                                                                                                                                                   |
-| :---------------------- | :------: | :---------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RABBITMQ_URL`          |  ✅ Yes  |      _None_       | AMQP broker connection string used to consume S3 object creation events.                                                                                                                                                                      |
-| `MINIO_EVENT_EXCHANGE`  |  ❌ No   | `"minio.events"`  | RabbitMQ Exchange where MinIO publishes bucket notifications.                                                                                                                                                                                 |
-| `MINIO_EVENT_QUEUE`     |  ❌ No   | `"image-uploads"` | Target RabbitMQ Queue that holds incoming processing jobs.                                                                                                                                                                                    |
-| `OPTIMIZED_EVENT_QUEUE` |  ❌ No   |      _None_       | (Optional) Target RabbitMQ Queue where successful image optimization event payloads are published. If omitted, outbound routing is disabled. Payload interface definition in [optimized-event.types.ts](./src/types/optimized-event.types.ts) |
-| `MINIO_HOST`            |  ❌ No   |   `"localhost"`   | Hostname or IP address of the MinIO S3 storage cluster.                                                                                                                                                                                       |
-| `MINIO_PORT`            |  ❌ No   |      `9000`       | Port used to connect to the MinIO API endpoint.                                                                                                                                                                                               |
-| `MINIO_USE_SSL`         |  ❌ No   |     `"false"`     | Toggles secure HTTPS/SSL transport connections (`true`/`false`).                                                                                                                                                                              |
-| `MINIO_ACCESS_KEY`      |  ✅ Yes  |      _None_       | Root access key or user ID credential for MinIO authentication. Also supports `MINIO_ACCESS_KEY_FILE` secret mapping.                                                                                                                         |
-| `MINIO_SECRET_KEY`      |  ✅ Yes  |      _None_       | Root secret token or password credential for MinIO authentication. Also supports `MINIO_SECRET_KEY_FILE` secret mapping.                                                                                                                      |
+Outbound payload interface definition in [optimized-event.types.ts](./src/types/optimized-event.types.ts)
+
+| Name                          | Required |           Default           | Description                                                                                                                                     |
+| :---------------------------- | :------: | :-------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RABBITMQ_URL`                |  ✅ Yes  |           _None_            | AMQP broker connection string used to connect to your RabbitMQ cluster.                                                                         |
+| `MINIO_EVENT_EXCHANGE`        |  ✅ Yes  |           _None_            | RabbitMQ Exchange where MinIO publishes bucket notifications.                                                                                   |
+| `MINIO_EVENT_ROUTING_KEY`     |  ✅ Yes  |           _None_            | The routing key (e.g., `s3.ObjectCreated.*`) used to bind the queue to the inbound exchange.                                                    |
+| `OPTIMIZER_UPLOAD_QUEUE`      |  ❌ No   | `"optimizer.image-uploads"` | Target RabbitMQ Queue that holds incoming image processing jobs.                                                                                |
+| `OPTIMIZER_EVENT_EXCHANGE`    |  ❌ No   |           _None_            | (Optional) Target RabbitMQ Exchange where successful image optimization event payloads are published. If omitted, outbound routing is disabled. |
+| `OPTIMIZER_EVENT_ROUTING_KEY` |  ❌ No   |           _None_            | (Optional) Routing key used when publishing completed optimization success events to the outbound exchange.                                     |
+| `MINIO_HOST`                  |  ❌ No   |        `"localhost"`        | Hostname or IP address of the MinIO S3 storage server.                                                                                          |
+| `MINIO_PORT`                  |  ❌ No   |           `9000`            | Port used to connect to the MinIO API endpoint.                                                                                                 |
+| `MINIO_USE_SSL`               |  ❌ No   |          `"false"`          | Toggles secure HTTPS/SSL transport connections (`true` / `false`).                                                                              |
+| `MINIO_ACCESS_KEY`            |  ✅ Yes  |           _None_            | Root access key or user ID credential for MinIO S3 authentication.                                                                              |
+| `MINIO_SECRET_KEY`            |  ✅ Yes  |           _None_            | Root secret token or password credential for MinIO S3 authentication.                                                                           |
 
 ## Object metadata
 

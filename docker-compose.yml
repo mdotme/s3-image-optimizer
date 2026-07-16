@@ -12,14 +12,16 @@ services:
       minio-init:
         condition: service_completed_successfully
     environment:
-      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
       MINIO_EVENT_EXCHANGE: ${MINIO_EVENT_EXCHANGE}
-      MINIO_EVENT_QUEUE: ${MINIO_EVENT_QUEUE}
-      OPTIMIZED_EVENT_QUEUE: ${OPTIMIZED_EVENT_QUEUE}
+      MINIO_EVENT_ROUTING_KEY: ${MINIO_EVENT_ROUTING_KEY}
+      OPTIMIZER_UPLOAD_QUEUE: ${OPTIMIZER_UPLOAD_QUEUE}
+      OPTIMIZER_EVENT_EXCHANGE: ${OPTIMIZER_EVENT_EXCHANGE}
+      OPTIMIZER_EVENT_ROUTING_KEY: ${OPTIMIZER_EVENT_ROUTING_KEY}
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@localhost:5672"
       MINIO_HOST: minio
       MINIO_PORT: 9000
       MINIO_USE_SSL: false
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_ACCESS_KEY: minio
       MINIO_SECRET_KEY_FILE: /run/secrets/minio_secret
     secrets:
       - minio_secret
@@ -55,34 +57,56 @@ services:
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASS: ${RABBITMQ_PASS}
       MINIO_EVENT_EXCHANGE: ${MINIO_EVENT_EXCHANGE}
-      MINIO_EVENT_QUEUE: ${MINIO_EVENT_QUEUE}
-    entrypoint: /bin/sh
+      MINIO_EVENT_ROUTING_KEY: ${MINIO_EVENT_ROUTING_KEY}
+      OPTIMIZER_UPLOAD_QUEUE: ${OPTIMIZER_UPLOAD_QUEUE}
+      OPTIMIZER_EVENT_EXCHANGE: ${OPTIMIZER_EVENT_EXCHANGE}
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - -c
       - |
         set -e
 
+        VHOST_ENCODED="%2F"
+
+        echo "Waiting for RabbitMQ Management API to be online..."
+        until curl -s -u "$$RABBITMQ_USER:$$RABBITMQ_PASS" "http://rabbitmq:15672/api/overview" >/dev/null; do
+          sleep 2
+        done
+
+        echo "Declaring Exchange: $$MINIO_EVENT_EXCHANGE"
         curl -fsS -u "$$RABBITMQ_USER:$$RABBITMQ_PASS" \
           -H "content-type: application/json" \
-          -X PUT "http://rabbitmq:15672/api/exchanges/%2F/$$MINIO_EVENT_EXCHANGE" \
+          -X PUT "http://rabbitmq:15672/api/exchanges/$$VHOST_ENCODED/$$MINIO_EVENT_EXCHANGE" \
           -d '{"type":"topic","durable":true}'
 
+        echo "Declaring Queue: $$OPTIMIZER_UPLOAD_QUEUE"
         curl -fsS -u "$$RABBITMQ_USER:$$RABBITMQ_PASS" \
           -H "content-type: application/json" \
-          -X PUT "http://rabbitmq:15672/api/queues/%2F/$$MINIO_EVENT_QUEUE" \
+          -X PUT "http://rabbitmq:15672/api/queues/$$VHOST_ENCODED/$$OPTIMIZER_UPLOAD_QUEUE" \
           -d '{"durable":true}'
 
+        echo "Creating Binding between $$MINIO_EVENT_EXCHANGE and $$OPTIMIZER_UPLOAD_QUEUE with routing key: $$MINIO_EVENT_ROUTING_KEY"
         curl -fsS -u "$$RABBITMQ_USER:$$RABBITMQ_PASS" \
           -H "content-type: application/json" \
-          -X POST "http://rabbitmq:15672/api/bindings/%2F/e/$$MINIO_EVENT_EXCHANGE/q/$$MINIO_EVENT_QUEUE" \
-          -d '{"routing_key":"s3.ObjectCreated.#"}'
-        echo "RabbitMQ topic exchange, queue, and wildcard binding ready"
+          -X POST "http://rabbitmq:15672/api/bindings/$$VHOST_ENCODED/e/$$MINIO_EVENT_EXCHANGE/q/$$OPTIMIZER_UPLOAD_QUEUE" \
+          -d "{\"routing_key\":\"$$MINIO_EVENT_ROUTING_KEY\"}"
+
+        if [ -n "$$OPTIMIZER_EVENT_EXCHANGE" ]; then
+          echo "Declaring Outbound Exchange: $$OPTIMIZER_EVENT_EXCHANGE"
+          curl -fsS -u "$$RABBITMQ_USER:$$RABBITMQ_PASS" \
+            -H "content-type: application/json" \
+            -X PUT "http://rabbitmq:15672/api/exchanges/$$VHOST_ENCODED/$$OPTIMIZER_EVENT_EXCHANGE" \
+            -d '{"type":"topic","durable":true}'
+        else
+          echo "No Outbound Exchange (OPTIMIZER_EVENT_EXCHANGE) configured. Skipping."
+        fi
+
+        echo "RabbitMQ initialization completed successfully!"
     restart: "no"
     networks:
       - s3-image-optimizer-net
 
   minio:
-    image: cgr.dev/chainguard/minio:latest
+    image: cgr.dev/chainguard/minio:latest-dev
     restart: unless-stopped
     depends_on:
       rabbitmq:
@@ -94,10 +118,11 @@ services:
       - "9001:9001"
     command: ["server", "/data", "--console-address", ":9001"]
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && exec 3<&-"]
-      interval: 5s
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
       timeout: 3s
-      retries: 3
+      retries: 5
+      start_period: 20s
     volumes:
       - minio:/data
     networks:
@@ -111,7 +136,7 @@ services:
       MINIO_NOTIFY_AMQP_URL_primary: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
       MINIO_NOTIFY_AMQP_EXCHANGE_primary: ${MINIO_EVENT_EXCHANGE}
       MINIO_NOTIFY_AMQP_EXCHANGE_TYPE_primary: topic
-      MINIO_NOTIFY_AMQP_ROUTING_KEY_primary: "s3.ObjectCreated.*"
+      MINIO_NOTIFY_AMQP_ROUTING_KEY_primary: ${MINIO_EVENT_ROUTING_KEY}
       MINIO_NOTIFY_AMQP_DURABLE_primary: "on"
       MINIO_NOTIFY_AMQP_DELIVERY_MODE_primary: "2"
 

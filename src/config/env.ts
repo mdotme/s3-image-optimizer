@@ -1,12 +1,22 @@
 import { getEnv, getRequiredEnv } from "@/utils/get-env.util";
 
 export const env = {
+  // Inbound
+  MINIO_EVENT_EXCHANGE: getRequiredEnv("MINIO_EVENT_EXCHANGE"),
+  MINIO_EVENT_ROUTING_KEY: getRequiredEnv("MINIO_EVENT_ROUTING_KEY"),
+  OPTIMIZER_UPLOAD_QUEUE: getEnv(
+    "OPTIMIZER_UPLOAD_QUEUE",
+    "optimizer.image-uploads",
+  ),
+
+  // Outbound
+  OPTIMIZER_EVENT_EXCHANGE: getEnv("OPTIMIZER_EVENT_EXCHANGE"),
+  OPTIMIZER_EVENT_ROUTING_KEY: getEnv("OPTIMIZER_EVENT_ROUTING_KEY"),
+
+  // RabbitMQ
   RABBITMQ_URL: getRequiredEnv("RABBITMQ_URL"),
 
-  MINIO_EVENT_EXCHANGE: getEnv("MINIO_EVENT_EXCHANGE", "minio.events"),
-  MINIO_EVENT_QUEUE: getEnv("MINIO_EVENT_QUEUE", "image-uploads"),
-  OPTIMIZED_EVENT_QUEUE: getEnv("OPTIMIZED_EVENT_QUEUE"),
-
+  // Minio
   MINIO_HOST: getEnv("MINIO_HOST", "localhost"),
   MINIO_PORT: +getEnv("MINIO_PORT", "9000"),
   // biome-ignore lint/suspicious/noDoubleEquals: 'Expected string bool'
