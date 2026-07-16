@@ -1,3 +1,15 @@
+## [2.0.0](https://github.com/mdotme/s3-image-optimizer/compare/v1.1.0...v2.0.0) (2026-07-16)
+* **rabbitmq:** implement least-privilege architecture and overhaul configuration ([b90966e](https://github.com/mdotme/s3-image-optimizer/commit/b90966e22b56b5d4d8707610ce13d6efad30713a))
+
+  - Refactored rabbitmq connection logic to least-privilege principles.
+- Fixed rabbitmq-init command for development.
+- Removed `OPTIMIZED_EVENT_QUEUE` and its logic which used to publish succcess event directly to that provided queue.
+- New `OPTIMIZER_UPLOAD_QUEUE` represents internal rabbitmq binding.
+- Added `OPTIMIZER_EVENT_EXCHANGE` and `OPTIMIZER_EVENT_ROUTING_KEY` to enable publishing processed image success events to the outbound exchange rather than specific queue.
+- Marked `MINIO_EVENT_EXCHANGE` and `MINIO_EVENT_ROUTING_KEY` strictly required.
+- Updated `.releaserc.json` to include full git commit body messages.
+- Updated README.md.
+
 # [1.1.0](https://github.com/mdotme/s3-image-optimizer/compare/v1.0.0...v1.1.0) (2026-07-09)
 
 
